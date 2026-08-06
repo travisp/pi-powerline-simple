@@ -1,0 +1,48 @@
+{
+  "name": "pi-powerline-simple",
+  "version": "0.3.0",
+  "description": "A status-bar-only fork of pi-powerline-footer rendered in Pi's native bottom footer.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "check": "npm test && npm pack --dry-run"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "powerline",
+    "footer",
+    "status-bar"
+  ],
+  "author": "Travis Pew",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/travisp/pi-powerline-simple.git"
+  },
+  "homepage": "https://github.com/travisp/pi-powerline-simple#readme",
+  "bugs": {
+    "url": "https://github.com/travisp/pi-powerline-simple/issues"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/extras.ts",
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.84.0",
+    "@earendil-works/pi-coding-agent": ">=0.84.0",
+    "@earendil-works/pi-tui": ">=0.84.0"
+  }
+}
