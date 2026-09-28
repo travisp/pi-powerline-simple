@@ -1,6 +1,6 @@
 # pi-powerline-simple
 
-A status-only fork of [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer), based on v0.12.1. It preserves Powerline's status engine while mounting its adaptive one-or-two-line layout in Pi's native footer **below the editor**.
+A status-only fork of [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer), based on v0.12.1 with selected status-engine fixes through upstream commit `bdf069fcf3` (after v0.18.0). It preserves Powerline's status engine while mounting its adaptive one-or-two-line layout in Pi's native footer **below the editor**.
 
 It does not replace or wrap the editor, intercept input, change `/compact`, or include Powerline's queue/inbox, bash mode, stash, welcome, working-vibes, prompt-history, or other workflow features.
 
@@ -19,7 +19,7 @@ Local extras do not add built-in segment IDs. Gondolin, usage, remote-admin, cac
 pi install /Users/travis/coding/pi/pi-powerline-simple
 ```
 
-Restart Pi or run `/reload`.
+Requires Pi 0.81.0 or newer. Restart Pi or run `/reload`.
 
 ## Default display
 
@@ -143,7 +143,9 @@ Cache-hit and last-response producers are enabled when either configuration requ
 }
 ```
 
-Custom item fields: `id`, `statusKey`, `position`, `prefix`, `color`, `hideWhenMissing`, and `excludeFromExtensionStatuses`. Colors accept Pi theme names or `#RRGGBB`.
+Custom item fields: `id`, `statusKey`, `position`, `prefix`, `color`, `selfColorize`, `hideWhenMissing`, and `excludeFromExtensionStatuses`. Colors accept Pi theme names or `#RRGGBB`. Set `selfColorize: true` to preserve the status producer's ANSI styling instead of applying `color` (default: false).
+
+Context usage after reload or compaction is estimated when Pi has not yet reported measured usage. Estimates are prefixed with `~`; unavailable usage is shown as `?`, not zero or stale pre-compaction usage. The session segment prefers the session name when one is set.
 
 ### Status options retained from upstream
 
@@ -162,7 +164,7 @@ Separators: `powerline`, `powerline-thin`, `slash`, `pipe`, `dot`, `chevron`, `s
 
 ## Nerd Fonts and theming
 
-Nerd Fonts are detected for Ghostty, iTerm, WezTerm, Kitty, and Alacritty. Override detection with `POWERLINE_NERD_FONTS=1` or `POWERLINE_NERD_FONTS=0`.
+Nerd Font support is inferred for Ghostty, iTerm, WezTerm, Kitty, Alacritty, and Kaku, using `TERM` when `TERM_PROGRAM` is unset. Override detection with `POWERLINE_NERD_FONTS=1` or `POWERLINE_NERD_FONTS=0`.
 
 Theme lookup order:
 

@@ -9,7 +9,12 @@ import type {
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { readSettings, writePowerlinePresetSetting } from "./settings.ts";
 import { renderStatusLines } from "./status-line.ts";
-import { CoreContextUsageCache } from "./upstream/context-usage.ts";
+import {
+  CoreContextUsageCache,
+  estimateUnknownContextUsage,
+  resolveDisplayContextUsage,
+  type CoreContextUsage,
+} from "./upstream/context-usage.ts";
 import {
   getGitStatus,
   invalidateGitBranch,
@@ -21,6 +26,7 @@ import {
   configForWidth,
   getNotificationExtensionStatuses,
   mergeSegmentOptions,
+  mergeSegmentsWithCustomItems,
   parsePowerlineConfig,
   type PowerlineConfig,
 } from "./upstream/powerline-config.ts";
@@ -147,12 +153,14 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
   let settings: Record<string, unknown> = {};
   let currentCtx: ExtensionContext | null = null;
   let footerDataRef: ReadonlyFooterDataProvider | null = null;
+  let footerDataCwd: string | null = null;
   let requestTuiRender: (() => void) | null = null;
   let sessionStartedAt = Date.now();
   let isStreaming = false;
   let liveAssistantUsage: AssistantUsage | null = null;
   let selectedThinkingLevel: string | null = null;
   let hasCustomCompaction = false;
+  let approximateContextUsage: CoreContextUsage | null = null;
 
   const branchCache = new SessionBranchCache();
   const tokenStatsCache = new SessionTokenStatsCache();
@@ -176,18 +184,30 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
       ? liveAssistantUsage ?? (tokenStats.lastAssistant?.usage as AssistantUsage | undefined)
       : tokenStats.lastAssistant?.usage as AssistantUsage | undefined;
     const coreContext = isStreaming && liveAssistantUsage ? null : contextUsageCache.get(ctx);
-    const contextTokens = coreContext?.contextTokens ?? (latestUsage ? usageTokenTotal(latestUsage) : 0);
-    const contextWindow = coreContext?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-    const contextPercent = coreContext?.contextPercent
-      ?? (contextWindow > 0 ? (contextTokens / contextWindow) * 100 : 0);
+    const { contextTokens, contextWindow, contextPercent } = resolveDisplayContextUsage({
+      coreContextUsage: coreContext,
+      unknownCoreFallback: approximateContextUsage,
+      fallbackContextTokens: latestUsage ? usageTokenTotal(latestUsage) : 0,
+      fallbackContextWindow: ctx.model?.contextWindow ?? 0,
+    });
+    const contextApproximate = coreContext?.contextTokens === null && approximateContextUsage !== null;
     const options = mergeSegmentOptions(preset.segmentOptions, activeConfig.segmentOptions);
     const extensionStatuses = footerDataRef?.getExtensionStatuses() ?? new Map<string, string>();
-    const providerBranch = footerDataRef?.getGitBranch() ?? null;
+    const layout = mergeSegmentsWithCustomItems(preset, activeConfig.customItems, {
+      layout: activeConfig.layout,
+      disabledSegments: activeConfig.disabledSegments,
+    });
+    const segmentIds = [...layout.leftSegments, ...layout.rightSegments, ...layout.secondarySegments];
+    const showGit = segmentIds.includes("git") && [
+      options.git?.showBranch, options.git?.showStaged, options.git?.showUnstaged, options.git?.showUntracked,
+    ].some((visible) => visible !== false);
+    const providerBranch = showGit && footerDataCwd === ctx.cwd ? footerDataRef?.getGitBranch() ?? null : null;
 
     return {
       model: ctx.model,
       thinkingLevel: selectedThinkingLevel ?? tokenStats.thinkingLevelFromSession ?? ctx.thinkingLevel ?? "off",
       sessionId: ctx.sessionManager.getSessionId(),
+      sessionName: ctx.sessionManager.getSessionName(),
       cwd: ctx.cwd,
       usageStats: {
         input: tokenStats.input,
@@ -200,6 +220,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
       contextTokens,
       contextPercent,
       contextWindow,
+      contextApproximate,
       autoCompactEnabled: runtimeAutoCompaction(ctx, configuredAutoCompaction(settings)),
       customCompactionEnabled: hasCustomCompaction || extensionStatuses.has(CUSTOM_COMPACTION_STATUS_KEY),
       usingSubscription: usingSubscription(ctx),
@@ -209,7 +230,9 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
       shellRunning: false,
       shellName: null,
       shellCwd: null,
-      git: getGitStatus(providerBranch, options.git?.polling),
+      git: showGit
+        ? getGitStatus(providerBranch, options.git?.polling, ctx.cwd)
+        : { branch: null, staged: 0, unstaged: 0, untracked: 0 },
       extensionStatuses,
       hiddenExtensionStatusKeys: collectHiddenExtensionStatusKeys(activeConfig.customItems),
       customItemsById: new Map(activeConfig.customItems.map((item) => [item.id, item])),
@@ -223,6 +246,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
     ctx.ui.setFooter((tui, theme, footerData) => {
       requestTuiRender = () => tui.requestRender();
       footerDataRef = footerData;
+      footerDataCwd = ctx.cwd;
       const unsubscribeBranch = footerData.onBranchChange(() => requestRender(true));
       const unsubscribeGit = subscribeGitUpdates(() => requestRender());
       const refresh = setInterval(() => requestRender(), 1_000);
@@ -255,6 +279,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
           if (originalSetStatus) writableFooterData.setExtensionStatus = originalSetStatus;
           if (originalClearStatuses) writableFooterData.clearExtensionStatuses = originalClearStatuses;
           footerDataRef = null;
+          footerDataCwd = null;
           requestTuiRender = null;
         },
         invalidate() {
@@ -322,7 +347,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", (event, ctx) => {
     if (ctx.mode !== "tui") return;
     currentCtx = ctx;
     sessionStartedAt = Date.now();
@@ -332,6 +357,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
     settings = readSettings(ctx.cwd);
     config = parsePowerlineConfig(settings.powerline, PRESET_NAMES);
     hasCustomCompaction = customCompactionEnabled(ctx.cwd);
+    approximateContextUsage = event.reason === "reload" ? estimateUnknownContextUsage(ctx) : null;
     resetCaches();
     warnInvalidConfig(ctx, config);
     if (enabled) installPowerlineUi(ctx);
@@ -392,6 +418,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
     if (ctx.mode !== "tui") return;
     currentCtx = ctx;
     selectedThinkingLevel = null;
+    approximateContextUsage = null;
     liveAssistantUsage = null;
     resetCaches();
     requestRender(true);
@@ -400,6 +427,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
   pi.on("session_compact", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     currentCtx = ctx;
+    approximateContextUsage = estimateUnknownContextUsage(ctx);
     liveAssistantUsage = null;
     resetCaches();
     requestRender(true);
@@ -429,7 +457,9 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
   pi.on("session_shutdown", () => {
     scheduler.cancel();
     currentCtx = null;
+    approximateContextUsage = null;
     footerDataRef = null;
+    footerDataCwd = null;
     requestTuiRender = null;
     liveAssistantUsage = null;
     resetCaches();

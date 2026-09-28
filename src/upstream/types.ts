@@ -117,6 +117,7 @@ export interface CustomStatusItem {
   statusKey: string;
   position: CustomItemPosition;
   color?: ColorValue;
+  selfColorize: boolean;
   prefix?: string;
   hideWhenMissing: boolean;
   excludeFromExtensionStatuses: boolean;
@@ -188,13 +189,15 @@ export interface SegmentContext {
   } | undefined;
   thinkingLevel: string;
   sessionId: string | undefined;
+  sessionName?: string;
   cwd?: string;
   
   // Computed
   usageStats: UsageStats;
-  contextTokens: number;
-  contextPercent: number;
+  contextTokens: number | null;
+  contextPercent: number | null;
   contextWindow: number;
+  contextApproximate: boolean;
   autoCompactEnabled: boolean;
   customCompactionEnabled: boolean;
   usingSubscription: boolean;

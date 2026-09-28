@@ -27,6 +27,7 @@ function segmentContext(): SegmentContext {
     contextTokens: 1_000,
     contextPercent: 10,
     contextWindow: 10_000,
+    contextApproximate: false,
     autoCompactEnabled: false,
     customCompactionEnabled: false,
     usingSubscription: false,
@@ -43,6 +44,7 @@ function segmentContext(): SegmentContext {
       id: "usage",
       statusKey: "usage",
       position: "right",
+      selfColorize: false,
       hideWhenMissing: true,
       excludeFromExtensionStatuses: true,
     }]]),
@@ -76,4 +78,18 @@ test("adaptive footer moves non-fitting segments to an overflow line", () => {
     " Test Model > think:low ",
     " dir project > ◫ 1.0k/10k (10.0%) ",
   ]);
+});
+
+test("slash and pipe separators have one space on each side and fit exact widths", () => {
+  for (const separator of ["slash", "pipe"] as const) {
+    const config = parsePowerlineConfig({
+      separator,
+      layout: { left: ["model", "thinking"], right: [], secondary: [] },
+    }, names);
+    const mark = separator === "slash" ? "/" : "|";
+    const expected = ` Test Model ${mark} think:low `;
+    const render = (width: number) => renderStatusLines(segmentContext(), getPreset(config.preset), config, width).map(stripAnsi);
+    assert.deepEqual(render(expected.length), [expected]);
+    assert.deepEqual(render(expected.length - 1), [" Test Model ", " think:low "]);
+  }
 });

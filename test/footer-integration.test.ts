@@ -42,6 +42,7 @@ test("extension mounts the upstream footer and notification-status widget", () =
   };
   piPowerlineSimple(api as any);
 
+  let contextTokens: number | null = 1_000;
   const ctx = {
     mode: "tui",
     cwd: "/tmp/project",
@@ -52,8 +53,11 @@ test("extension mounts the upstream footer and notification-status widget", () =
       getLeafId: () => "leaf",
       getBranch: () => [],
       getSessionId: () => "session",
+      getSessionName: () => undefined,
+      buildContextEntries: () => [],
     },
-    getContextUsage: () => ({ tokens: 1_000, contextWindow: 10_000, percent: 10 }),
+    getSystemPrompt: () => "x".repeat(400),
+    getContextUsage: () => ({ tokens: contextTokens, contextWindow: 10_000 }),
     ui: {
       setFooter(factory: any) { footerFactory = factory; },
       setWidget(id: string, factory: any, options: any) {
@@ -76,7 +80,7 @@ test("extension mounts the upstream footer and notification-status widget", () =
     ["plain", "connected"],
   ]);
   const footerData = {
-    getGitBranch: () => null,
+    getGitBranch: () => { throw new Error("hidden Git segment must not collect branch data"); },
     getExtensionStatuses: () => statuses,
     onBranchChange: () => () => {},
   };
@@ -98,8 +102,28 @@ test("extension mounts the upstream footer and notification-status widget", () =
   assert.deepEqual(component.render(80).map(stripAnsi), lines);
   assert.deepEqual(notificationComponent.render(80), [" [review] waiting"]);
   assert.deepEqual(component.render(120).map(stripAnsi), lines);
+  contextTokens = null;
+  for (const handler of handlers.get("session_compact") ?? []) handler({}, ctx);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" ~1% > [review] waiting "]);
+  assert.match(stripAnsi(component.render(120)[0]), /~100\/10k \(1\.0%\)/);
+  contextTokens = 2_500;
+  for (const handler of handlers.get("message_end") ?? []) handler({}, ctx);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" 25% > [review] waiting "]);
   notificationComponent.dispose();
   component.dispose();
+
+  contextTokens = null;
+  for (const handler of handlers.get("session_start") ?? []) handler({ reason: "reload" }, ctx);
+  const reloaded = footerFactory(
+    { requestRender() {} },
+    { fg: (_color: string, text: string) => text },
+    footerData,
+  );
+  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ~1% > [review] waiting "]);
+  for (const handler of handlers.get("session_tree") ?? []) handler({}, ctx);
+  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ? > [review] waiting "]);
+  reloaded.dispose();
+  for (const handler of handlers.get("session_shutdown") ?? []) handler({}, ctx);
 
   if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

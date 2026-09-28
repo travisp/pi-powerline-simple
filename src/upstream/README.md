@@ -1,6 +1,13 @@
 # Vendored Powerline status modules
 
-These files are copied from `pi-powerline-footer` v0.12.1 and make up its status-bar engine. Keep them byte-for-byte aligned with upstream whenever possible.
+These files originate from `pi-powerline-footer` v0.12.1 and make up its status-bar engine. Selected status changes have been ported through upstream commit `bdf069fcf33211d9037919e539aa129d4efd263e` (after v0.18.0). Keep them byte-for-byte aligned with upstream whenever possible.
+
+Ported status changes:
+
+- `git-status.ts`, `context-usage.ts`, `icons.ts`, and `separators.ts` match that upstream commit.
+- `segments.ts` and `types.ts` include its context estimates/unknown values, session names, cwd-scoped remote icons, model qualification, and custom/extension ANSI styling. Queue changes are intentionally excluded.
+- `powerline-config.ts` includes `customItems[].selfColorize` and ANSI-preserving normalization, but excludes new workflow configuration.
+- The native-footer adapter supplies the new context fields, estimates on reload/compaction, and scopes Git collection to the active cwd and visible layout.
 
 Vendored modules include configuration, presets, segment rendering, themes, icons, separators, Git polling, token/context accounting, currency conversion, paths, and render scheduling.
 
@@ -13,4 +20,7 @@ Package-specific code stays outside this directory:
 
 The queue and shell segments remain upstream code, but their runtime state is empty because this package does not include those workflows.
 
-Intentional vendor patch: `theme.ts` also checks `~/.pi/agent/powerline-simple/theme.json` before the legacy upstream theme path.
+Intentional vendor patches:
+
+- `theme.ts` also checks `~/.pi/agent/powerline-simple/theme.json` before the legacy upstream theme path.
+- `powerline-config.ts` retains the fork's width-dependent `narrow` configuration.

@@ -53,7 +53,7 @@ const modelSegment: StatusLineSegment = {
     let modelName = ctx.model?.name || ctx.model?.id || "no-model";
     if (opts.display === "qualified" && ctx.model?.id) {
       const provider = ctx.model.provider || ctx.model.providerId || ctx.model.providerName;
-      modelName = provider && !ctx.model.id.includes("/") ? `${provider}/${ctx.model.id}` : ctx.model.id;
+      modelName = provider && !ctx.model.id.startsWith(`${provider}/`) ? `${provider}/${ctx.model.id}` : ctx.model.id;
     } else if (modelName.startsWith("Claude ")) {
       modelName = modelName.slice(7);
     }
@@ -136,9 +136,9 @@ const pathSegment: StatusLineSegment = {
  * enabled and a remote is known, otherwise the plain branch icon. An
  * unrecognized remote falls back to the generic git logo.
  */
-function resolveBranchIcon(icons: IconSet, hostIcon: boolean): string {
+function resolveBranchIcon(icons: IconSet, hostIcon: boolean, cwd: string | undefined): string {
   if (!hostIcon) return icons.branch;
-  const host = getGitRemoteHost();
+  const host = getGitRemoteHost(cwd);
   const byHost: Record<GitHost, string> = {
     github: icons.github,
     gitlab: icons.gitlab,
@@ -168,7 +168,7 @@ const gitSegment: StatusLineSegment = {
     let content = "";
     if (showBranch && branch) {
       // Color just the branch name (icon + branch text)
-      const branchIcon = resolveBranchIcon(icons, opts.hostIcon === true);
+      const branchIcon = resolveBranchIcon(icons, opts.hostIcon === true, ctx.cwd);
       content = color(ctx, branchColor, withIcon(branchIcon, branch));
     }
 
@@ -346,19 +346,23 @@ const contextPctSegment: StatusLineSegment = {
 
     const autoIcon = ctx.autoCompactEnabled && icons.auto ? ` ${icons.auto}` : "";
     const percentOnly = ctx.options.context?.format === "percent";
+    const hasKnownUsage = contextTokens !== null && contextPercent !== null;
+    const approximate = ctx.contextApproximate ? "~" : "";
     // "full" (default): tokens/window + one-decimal percentage + auto-compact icon.
     // "percent": bare rounded percentage, threshold-colored, no icons.
     const text = percentOnly
-      ? `${Math.round(contextPercent)}%`
-      : `${formatTokens(contextTokens)}/${formatTokens(contextWindow)} (${contextPercent.toFixed(1)}%)${autoIcon}`;
+      ? (hasKnownUsage ? `${approximate}${Math.round(contextPercent)}%` : "?")
+      : hasKnownUsage
+        ? `${approximate}${formatTokens(contextTokens)}/${formatTokens(contextWindow)} (${contextPercent.toFixed(1)}%)${autoIcon}`
+        : `?/${formatTokens(contextWindow)}${autoIcon}`;
 
     // Icon outside color, text inside - use semantic colors for thresholds
     let content: string;
     const colored = (semantic: "context" | "contextWarn" | "contextError") =>
       percentOnly ? color(ctx, semantic, text) : withIcon(icons.context, color(ctx, semantic, text));
-    if (contextPercent > 90) {
+    if (hasKnownUsage && contextPercent > 90) {
       content = colored("contextError");
-    } else if (contextPercent > 70) {
+    } else if (hasKnownUsage && contextPercent > 70) {
       content = colored("contextWarn");
     } else {
       content = colored("context");
@@ -425,7 +429,7 @@ const sessionSegment: StatusLineSegment = {
   render(ctx) {
     const icons = getIcons();
     const sessionId = ctx.sessionId;
-    const display = sessionId?.slice(0, 8) || "new";
+    const display = ctx.sessionName?.trim() ? ctx.sessionName : sessionId?.slice(0, 8) || "new";
 
     return { content: withIcon(icons.session, display), visible: true };
   },
@@ -497,8 +501,8 @@ const extensionStatusesSegment: StatusLineSegment = {
 
     if (parts.length === 0) return { content: "", visible: false };
 
-    // Statuses already have their own styling applied by the extensions
-    const content = parts.join(` ${SEP_DOT} `);
+    // Normalization strips trailing SGR resets; isolate each status's styling.
+    const content = parts.map((part) => `\x1b[0m${part}\x1b[0m`).join(SEP_DOT);
     return { content, visible: true };
   },
 };
@@ -536,7 +540,7 @@ function renderCustomSegment(id: `custom:${string}`, ctx: SegmentContext): Rende
   if (!custom) return { content: "", visible: false };
 
   const rawStatus = ctx.extensionStatuses.get(custom.statusKey);
-  const normalizedStatus = rawStatus ? normalizeExtensionStatusValue(rawStatus) : null;
+  const normalizedStatus = rawStatus ? normalizeExtensionStatusValue(rawStatus, custom.selfColorize) : null;
   if (!normalizedStatus) {
     return custom.hideWhenMissing ? { content: "", visible: false } : { content: custom.prefix ?? custom.id, visible: true };
   }
@@ -545,7 +549,7 @@ function renderCustomSegment(id: `custom:${string}`, ctx: SegmentContext): Rende
   if (custom.prefix) {
     content = `${custom.prefix}${SEP_DOT}${content}`;
   }
-  if (custom.color) {
+  if (custom.color && !custom.selfColorize) {
     content = applyColor(ctx.theme, custom.color, content);
   }
 
