@@ -66,6 +66,43 @@ Presets: `default`, `minimal`, `compact`, `full`, `nerd`, and `ascii`.
 - `/powerline` toggles between this footer and Pi's native footer for the current process.
 - `/powerline <preset>` applies and persists a preset while preserving object configuration.
 
+### Narrow-screen configuration
+
+Add `narrow` to your existing `powerline` settings to switch display configuration automatically below a terminal-column breakpoint:
+
+```json
+{
+  "powerline": {
+    "preset": "default",
+    "narrow": {
+      "belowWidth": 80,
+      "disabledSegments": ["path", "custom:cache-hit"]
+    }
+  }
+}
+```
+
+`custom:cache-hit` must match an item ID in your `customItems`. Below 80 columns this example hides the directory and CH; at 80 or above the normal configuration returns. Resizing never writes settings. Without `narrow`, the display is unchanged. `belowWidth` must be a positive integer; an invalid or missing breakpoint disables the override.
+
+The override uses the existing display options, including `preset`, `layout`, `customItems`, `disabledSegments`, `separator`, and segment options. Objects merge by key; arrays replace rather than append (including individual layout rows). Omitted settings are inherited. For example, to replace and reorder segments and shorten context usage:
+
+```json
+"narrow": {
+  "belowWidth": 80,
+  "layout": {
+    "left": ["model", "git", "context_pct"],
+    "right": ["custom:usage"],
+    "secondary": []
+  },
+  "context": { "format": "percent" },
+  "separator": "ascii"
+}
+```
+
+Here `usage` must be defined in the inherited or overridden `customItems`. A narrow preset still inherits explicit normal layout and segment options; use `"layout": null` to use that preset's layout instead. The two-row fitting limit applies in both configurations. Narrow overrides cannot contain another narrow override.
+
+Cache-hit and last-response producers are enabled when either configuration requests them. Last-response timestamps retain the normal configuration's `time.format`, since their text is published independently of footer width.
+
 ### Custom statuses
 
 ```json

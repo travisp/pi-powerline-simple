@@ -51,52 +51,55 @@ test("formatLastResponse includes completion time and relative age", () => {
   assert.equal(formatLastResponse(timestamp, timestamp + 7 * 60_000, "12h"), "3:42pm · 7m ago");
 });
 
-test("extra producers are opt-in through configured custom status keys", () => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-powerline-extras-test-"));
-  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
-  process.env.PI_CODING_AGENT_DIR = agentDir;
-  writeFileSync(join(agentDir, "settings.json"), JSON.stringify({
-    powerline: {
+for (const mode of ["normal", "narrow"]) {
+  test(`extra producers support custom status keys in ${mode} configuration`, () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "pi-powerline-extras-test-"));
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = agentDir;
+    const display = {
       customItems: [
         { id: "cache-hit", statusKey: "powerline-cache-hit" },
         { id: "last-response", statusKey: "powerline-last-response" },
       ],
-    },
-  }));
+    };
+    writeFileSync(join(agentDir, "settings.json"), JSON.stringify({
+      powerline: mode === "narrow" ? { narrow: { belowWidth: 80, ...display } } : display,
+    }));
 
-  const handlers = new Map<string, Array<(event: any, ctx: any) => unknown>>();
-  powerlineExtras({
-    on(name: string, handler: (event: any, ctx: any) => unknown) {
-      const values = handlers.get(name) ?? [];
-      values.push(handler);
-      handlers.set(name, values);
-    },
-  } as any);
+    const handlers = new Map<string, Array<(event: any, ctx: any) => unknown>>();
+    powerlineExtras({
+      on(name: string, handler: (event: any, ctx: any) => unknown) {
+        const values = handlers.get(name) ?? [];
+        values.push(handler);
+        handlers.set(name, values);
+      },
+    } as any);
 
-  const statuses = new Map<string, string | undefined>();
-  const ctx = {
-    mode: "tui",
-    cwd: "/tmp/project",
-    sessionManager: {
-      getBranch: () => [{
-        type: "message",
-        timestamp: new Date().toISOString(),
-        message: {
-          role: "assistant",
-          stopReason: "stop",
-          usage: { input: 100, cacheRead: 900, cacheWrite: 0 },
-        },
-      }],
-    },
-    ui: { setStatus: (key: string, value: string | undefined) => statuses.set(key, value) },
-  };
+    const statuses = new Map<string, string | undefined>();
+    const ctx = {
+      mode: "tui",
+      cwd: "/tmp/project",
+      sessionManager: {
+        getBranch: () => [{
+          type: "message",
+          timestamp: new Date().toISOString(),
+          message: {
+            role: "assistant",
+            stopReason: "stop",
+            usage: { input: 100, cacheRead: 900, cacheWrite: 0 },
+          },
+        }],
+      },
+      ui: { setStatus: (key: string, value: string | undefined) => statuses.set(key, value) },
+    };
 
-  for (const handler of handlers.get("session_start") ?? []) handler({}, ctx);
-  assert.equal(statuses.get("powerline-cache-hit"), "CH90.0%");
-  assert.match(statuses.get("powerline-last-response") ?? "", /ago$/);
-  for (const handler of handlers.get("session_shutdown") ?? []) handler({}, ctx);
+    for (const handler of handlers.get("session_start") ?? []) handler({}, ctx);
+    assert.equal(statuses.get("powerline-cache-hit"), "CH90.0%");
+    assert.match(statuses.get("powerline-last-response") ?? "", /ago$/);
+    for (const handler of handlers.get("session_shutdown") ?? []) handler({}, ctx);
 
-  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
-  rmSync(agentDir, { recursive: true, force: true });
-});
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    rmSync(agentDir, { recursive: true, force: true });
+  });
+}

@@ -93,7 +93,9 @@ export function formatLastResponse(
 function resolveExtraConfig(cwd: string): ExtraStatusConfig {
   const config = parsePowerlineConfig(readSettings(cwd).powerline, PRESET_NAMES);
   const options = mergeSegmentOptions(getPreset(config.preset).segmentOptions, config.segmentOptions);
-  const statusKeys = new Set(config.customItems.map((item) => item.statusKey));
+  // Produce statuses used by either layout so resizing never waits for a new response.
+  const items = [...config.customItems, ...(config.narrow?.config.customItems ?? [])];
+  const statusKeys = new Set(items.map((item) => item.statusKey));
   return {
     cacheHit: statusKeys.has(CACHE_HIT_STATUS_KEY),
     lastResponse: statusKeys.has(LAST_RESPONSE_STATUS_KEY),

@@ -18,6 +18,12 @@ test("extension mounts the upstream footer and notification-status widget", () =
   writeFileSync(join(agentDir, "settings.json"), JSON.stringify({
     powerline: {
       separator: "ascii",
+      narrow: {
+        belowWidth: 80,
+        layout: { left: ["context_pct", "custom:review"], right: [], secondary: [] },
+        customItems: [{ id: "review", statusKey: "review" }],
+        context: { format: "percent" },
+      },
       layout: { left: ["model", "thinking", "path", "context_pct"], right: [], secondary: [] },
     },
   }));
@@ -87,6 +93,11 @@ test("extension mounts the upstream footer and notification-status widget", () =
   const notificationComponent = notificationFactory();
   assert.deepEqual(notificationComponent.render(120), [" [review] waiting"]);
   assert.deepEqual(notificationComponent.render(10), []);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" 10% > [review] waiting "]);
+  assert.deepEqual(notificationComponent.render(79), []);
+  assert.deepEqual(component.render(80).map(stripAnsi), lines);
+  assert.deepEqual(notificationComponent.render(80), [" [review] waiting"]);
+  assert.deepEqual(component.render(120).map(stripAnsi), lines);
   notificationComponent.dispose();
   component.dispose();
 

@@ -18,6 +18,7 @@ import {
 } from "./upstream/git-status.ts";
 import {
   collectHiddenExtensionStatusKeys,
+  configForWidth,
   getNotificationExtensionStatuses,
   mergeSegmentOptions,
   parsePowerlineConfig,
@@ -129,11 +130,14 @@ function mightChangeGitBranch(command: string): boolean {
 }
 
 function warnInvalidConfig(ctx: ExtensionContext, config: PowerlineConfig): void {
-  if (config.invalidDisabledSegments.length > 0) {
-    ctx.ui.notify(`Ignoring unknown powerline disabled segments: ${config.invalidDisabledSegments.join(", ")}`, "warning");
-  }
-  if (config.invalidLayoutSegments.length > 0) {
-    ctx.ui.notify(`Ignoring unknown powerline layout segments: ${config.invalidLayoutSegments.join(", ")}`, "warning");
+  const displays = config.narrow ? [config, config.narrow.config] : [config];
+  for (const display of displays) {
+    if (display.invalidDisabledSegments.length > 0) {
+      ctx.ui.notify(`Ignoring unknown powerline disabled segments: ${display.invalidDisabledSegments.join(", ")}`, "warning");
+    }
+    if (display.invalidLayoutSegments.length > 0) {
+      ctx.ui.notify(`Ignoring unknown powerline layout segments: ${display.invalidLayoutSegments.join(", ")}`, "warning");
+    }
   }
 }
 
@@ -163,8 +167,8 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
 
   const requestRender = (immediate = false) => scheduler.schedule(immediate ? 0 : undefined);
 
-  const buildContext = (ctx: ExtensionContext, theme: Theme): SegmentContext => {
-    const preset = getPreset(config.preset);
+  const buildContext = (ctx: ExtensionContext, theme: Theme, activeConfig: PowerlineConfig): SegmentContext => {
+    const preset = getPreset(activeConfig.preset);
     const colors: ColorScheme = preset.colors ?? getDefaultColors();
     const branch = branchCache.get(ctx.sessionManager);
     const tokenStats = tokenStatsCache.get(branch);
@@ -176,7 +180,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
     const contextWindow = coreContext?.contextWindow ?? ctx.model?.contextWindow ?? 0;
     const contextPercent = coreContext?.contextPercent
       ?? (contextWindow > 0 ? (contextTokens / contextWindow) * 100 : 0);
-    const options = mergeSegmentOptions(preset.segmentOptions, config.segmentOptions);
+    const options = mergeSegmentOptions(preset.segmentOptions, activeConfig.segmentOptions);
     const extensionStatuses = footerDataRef?.getExtensionStatuses() ?? new Map<string, string>();
     const providerBranch = footerDataRef?.getGitBranch() ?? null;
 
@@ -207,8 +211,8 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
       shellCwd: null,
       git: getGitStatus(providerBranch, options.git?.polling),
       extensionStatuses,
-      hiddenExtensionStatusKeys: collectHiddenExtensionStatusKeys(config.customItems),
-      customItemsById: new Map(config.customItems.map((item) => [item.id, item])),
+      hiddenExtensionStatusKeys: collectHiddenExtensionStatusKeys(activeConfig.customItems),
+      customItemsById: new Map(activeConfig.customItems.map((item) => [item.id, item])),
       options,
       theme,
       colors,
@@ -258,8 +262,9 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
         },
         render(width: number): string[] {
           if (!currentCtx) return [];
-          const context = buildContext(currentCtx, theme);
-          return renderStatusLines(context, getPreset(config.preset), config, width);
+          const activeConfig = configForWidth(config, width);
+          const context = buildContext(currentCtx, theme, activeConfig);
+          return renderStatusLines(context, getPreset(activeConfig.preset), activeConfig, width);
         },
       };
     });
@@ -273,7 +278,7 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
       },
       render(width: number): string[] {
         if (!footerDataRef) return [];
-        const hiddenKeys = collectHiddenExtensionStatusKeys(config.customItems);
+        const hiddenKeys = collectHiddenExtensionStatusKeys(configForWidth(config, width).customItems);
         return getNotificationExtensionStatuses(footerDataRef.getExtensionStatuses(), hiddenKeys)
           .map((value) => ` ${value}`)
           .filter((value) => visibleWidth(value) <= width);

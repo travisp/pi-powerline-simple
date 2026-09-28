@@ -5,6 +5,7 @@ import type { ColorValue, CustomItemPosition, CustomStatusItem, PowerlinePlaceme
 
 export interface PowerlineConfig {
   preset: StatusLinePreset;
+  narrow: { belowWidth: number; config: PowerlineConfig } | null;
   customItems: CustomStatusItem[];
   disabledSegments: StatusLineSegmentId[];
   invalidDisabledSegments: string[];
@@ -298,9 +299,41 @@ export function mergeSegmentOptions(
   };
 }
 
+// Objects inherit individual options; arrays replace whole lists, including layout rows.
+function mergeDisplayConfig(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    const previous = merged[key];
+    merged[key] = isRecord(previous) && isRecord(value)
+      ? mergeDisplayConfig(previous, value)
+      : value;
+  }
+  return merged;
+}
+
+export function configForWidth(config: PowerlineConfig, width: number): PowerlineConfig {
+  return config.narrow && width < config.narrow.belowWidth ? config.narrow.config : config;
+}
+
 export function parsePowerlineConfig(value: unknown, presets: readonly StatusLinePreset[]): PowerlineConfig {
+  const config = parseDisplayConfig(value, presets);
+  if (!isRecord(value) || !isRecord(value.narrow)) return config;
+
+  const { belowWidth } = value.narrow;
+  if (typeof belowWidth !== "number" || !Number.isInteger(belowWidth) || belowWidth <= 0) return config;
+
+  // Parse each display independently: only this outer layer handles the breakpoint.
+  config.narrow = {
+    belowWidth,
+    config: parseDisplayConfig(mergeDisplayConfig(value, value.narrow), presets),
+  };
+  return config;
+}
+
+function parseDisplayConfig(value: unknown, presets: readonly StatusLinePreset[]): PowerlineConfig {
   const defaultConfig: PowerlineConfig = {
     preset: "default",
+    narrow: null,
     customItems: [],
     disabledSegments: [],
     invalidDisabledSegments: [],
@@ -330,6 +363,7 @@ export function parsePowerlineConfig(value: unknown, presets: readonly StatusLin
 
   return {
     preset: normalizePreset(value.preset, presets) ?? defaultConfig.preset,
+    narrow: null,
     customItems,
     disabledSegments,
     invalidDisabledSegments,
