@@ -1,4 +1,5 @@
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { customizeModelName, customizeSegment } from "./segment-overrides.ts";
 import { ansi, getFgAnsiCode } from "./upstream/colors.ts";
 import { mergeSegmentsWithCustomItems, type PowerlineConfig } from "./upstream/powerline-config.ts";
 import { getSeparator } from "./upstream/separators.ts";
@@ -11,9 +12,21 @@ interface RenderedPart {
 }
 
 function renderPart(id: StatusLineSegmentId, context: SegmentContext): RenderedPart | null {
+  // Shorten the model before upstream adds icons, colors, and thinking text.
+  if (id === "model" && context.model) {
+    context = {
+      ...context,
+      model: {
+        ...context.model,
+        id: customizeModelName(context.model.id),
+        name: context.model.name === undefined ? undefined : customizeModelName(context.model.name),
+      },
+    };
+  }
   const rendered = renderSegment(id, context);
   if (!rendered.visible || !rendered.content) return null;
-  return { content: rendered.content, width: visibleWidth(rendered.content) };
+  const content = customizeSegment(id, rendered.content);
+  return { content, width: visibleWidth(content) };
 }
 
 function buildContent(parts: readonly RenderedPart[], separatorStyle: StatusLineSeparatorStyle): string {

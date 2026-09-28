@@ -92,7 +92,7 @@ test("extension mounts the upstream footer and notification-status widget", () =
   const lines = component.render(120).map(stripAnsi);
 
   assert.equal(lines.length, 1);
-  assert.equal(lines[0], " Test Model > think:low > dir project > ◫ 1.0k/10k (10.0%) AC ");
+  assert.equal(lines[0], " Test Model > 🧠 low > dir project > ◫ 1.0k/10k (10.0%) AC ");
 
   const notificationComponent = notificationFactory();
   assert.deepEqual(notificationComponent.render(120), [" [review] waiting"]);
