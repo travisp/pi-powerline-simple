@@ -1,4 +1,5 @@
-import type { StatusLineSegmentId } from "./upstream/types.ts";
+import { getIcons } from "./upstream/icons.ts";
+import type { StatusLineSegmentId, StatusLineSegmentOptions } from "./upstream/types.ts";
 
 // Rainbow styling inserts ANSI color codes between letters in the prefix.
 const thinkingPrefix = new RegExp("think:".split("").join("(?:\\x1b\\[[0-9;]*m)*"));
@@ -12,6 +13,10 @@ export function customizeModelName(name: string): string {
   return qualifier + model.replace(/^(gpt|claude)[ -]+/i, "").replace(/\s+/g, "-");
 }
 
-export function customizeSegment(id: StatusLineSegmentId, content: string): string {
-  return id === "thinking" ? content.replace(thinkingPrefix, "🧠 ") : content;
+export function customizeSegment(id: StatusLineSegmentId, content: string, options: StatusLineSegmentOptions): string {
+  if (id === "thinking") return content.replace(thinkingPrefix, "🧠 ");
+  if (id === "context_pct" && options.context?.format === "percent") {
+    return `${getIcons().context} ${content}`;
+  }
+  return content;
 }

@@ -97,18 +97,18 @@ test("extension mounts the upstream footer and notification-status widget", () =
   const notificationComponent = notificationFactory();
   assert.deepEqual(notificationComponent.render(120), [" [review] waiting"]);
   assert.deepEqual(notificationComponent.render(10), []);
-  assert.deepEqual(component.render(79).map(stripAnsi), [" 10% > [review] waiting "]);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" ◫ 10% > [review] waiting "]);
   assert.deepEqual(notificationComponent.render(79), []);
   assert.deepEqual(component.render(80).map(stripAnsi), lines);
   assert.deepEqual(notificationComponent.render(80), [" [review] waiting"]);
   assert.deepEqual(component.render(120).map(stripAnsi), lines);
   contextTokens = null;
   for (const handler of handlers.get("session_compact") ?? []) handler({}, ctx);
-  assert.deepEqual(component.render(79).map(stripAnsi), [" ~1% > [review] waiting "]);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" ◫ ~1% > [review] waiting "]);
   assert.match(stripAnsi(component.render(120)[0]), /~100\/10k \(1\.0%\)/);
   contextTokens = 2_500;
   for (const handler of handlers.get("message_end") ?? []) handler({}, ctx);
-  assert.deepEqual(component.render(79).map(stripAnsi), [" 25% > [review] waiting "]);
+  assert.deepEqual(component.render(79).map(stripAnsi), [" ◫ 25% > [review] waiting "]);
   notificationComponent.dispose();
   component.dispose();
 
@@ -119,9 +119,9 @@ test("extension mounts the upstream footer and notification-status widget", () =
     { fg: (_color: string, text: string) => text },
     footerData,
   );
-  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ~1% > [review] waiting "]);
+  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ◫ ~1% > [review] waiting "]);
   for (const handler of handlers.get("session_tree") ?? []) handler({}, ctx);
-  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ? > [review] waiting "]);
+  assert.deepEqual(reloaded.render(79).map(stripAnsi), [" ◫ ? > [review] waiting "]);
   reloaded.dispose();
   for (const handler of handlers.get("session_shutdown") ?? []) handler({}, ctx);
 

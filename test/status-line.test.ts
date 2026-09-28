@@ -82,6 +82,24 @@ test("model customization precedes styling and fitting without changing session 
   }
 });
 
+test("percent context retains its icon and counts it when fitting", () => {
+  const config = parsePowerlineConfig({
+    layout: { left: ["context_pct"], right: [], secondary: [] },
+  }, names);
+  const context = segmentContext();
+  context.options.context = { format: "percent" };
+  const render = (width: number) => renderStatusLines(context, getPreset(config.preset), config, width).map(stripAnsi);
+  assert.deepEqual(render(7), [" ◫ 10% "]);
+  assert.deepEqual(render(6), []);
+  context.contextApproximate = true;
+  assert.deepEqual(render(8), [" ◫ ~10% "]);
+  context.contextTokens = null;
+  context.contextPercent = null;
+  assert.deepEqual(render(5), [" ◫ ? "]);
+  context.customCompactionEnabled = true;
+  assert.deepEqual(render(80), []);
+});
+
 test("adaptive footer moves non-fitting segments to an overflow line", () => {
   const config = parsePowerlineConfig({
     separator: "ascii",

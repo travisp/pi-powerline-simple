@@ -25,7 +25,7 @@ function renderPart(id: StatusLineSegmentId, context: SegmentContext): RenderedP
   }
   const rendered = renderSegment(id, context);
   if (!rendered.visible || !rendered.content) return null;
-  const content = customizeSegment(id, rendered.content);
+  const content = customizeSegment(id, rendered.content, context.options);
   return { content, width: visibleWidth(content) };
 }
 
