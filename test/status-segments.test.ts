@@ -111,6 +111,20 @@ test("extension statuses have single spacing and isolated ANSI styling", () => {
   assert.equal(rendered.content, "\x1b[0m\x1b[31mred\x1b[0m · \x1b[0mplain\x1b[0m");
 });
 
+test("quota statuses are compact in both ordinary and custom segments", () => {
+  const value = "7d:98% left (↺in 6d 22h 49m) cap:OK";
+  const config = parsePowerlineConfig({
+    customItems: [{ id: "quota", statusKey: "pi-quotas-usage", selfColorize: true }],
+  }, ["default"]);
+  const item = config.customItems[0];
+  const ctx = context({
+    extensionStatuses: new Map([["pi-quotas-usage", value], ["other", value]]),
+    customItemsById: new Map([[item.id, item]]),
+  });
+  assert.equal(stripAnsi(renderSegment("extension_statuses", ctx).content), `98% ↺ 6d22h · ${value}`);
+  assert.equal(renderSegment("custom:quota", ctx).content, "98% ↺ 6d22h");
+});
+
 test("session names and provider-qualified model IDs render correctly", () => {
   assert.equal(renderSegment("session", context({ sessionName: "Review" })).content, "id Review");
   for (const [id, expected] of [

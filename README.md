@@ -198,7 +198,11 @@ Theme lookup order:
 
 ## Development
 
+Run development commands through Devbox for the required Node version.
+Pi packages are pinned development dependencies for reproducible tests; at runtime,
+the extension uses Pi's host-provided peer dependencies.
+
 ```sh
-devbox run -- npm test
-npm pack --dry-run
+devbox run -- npm ci
+devbox run -- npm run check
 ```

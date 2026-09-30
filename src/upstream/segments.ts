@@ -1,4 +1,5 @@
 import { hostname as osHostname } from "node:os";
+import { compactQuotaStatus } from "../quota-status.ts";
 import { basename } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import type { BuiltinStatusLineSegmentId, RenderedSegment, SegmentContext, SemanticColor, StatusLineSegment, StatusLineSegmentId } from "./types.ts";
@@ -493,7 +494,7 @@ const extensionStatusesSegment: StatusLineSegment = {
     const parts: string[] = [];
     for (const [statusKey, value] of statuses.entries()) {
       if (ctx.hiddenExtensionStatusKeys.has(statusKey)) continue;
-      const normalized = value ? normalizeCompactExtensionStatus(value) : null;
+      const normalized = value ? normalizeCompactExtensionStatus(compactQuotaStatus(statusKey, value)) : null;
       if (normalized) {
         parts.push(normalized);
       }
@@ -540,7 +541,7 @@ function renderCustomSegment(id: `custom:${string}`, ctx: SegmentContext): Rende
   if (!custom) return { content: "", visible: false };
 
   const rawStatus = ctx.extensionStatuses.get(custom.statusKey);
-  const normalizedStatus = rawStatus ? normalizeExtensionStatusValue(rawStatus, custom.selfColorize) : null;
+  const normalizedStatus = rawStatus ? normalizeExtensionStatusValue(compactQuotaStatus(custom.statusKey, rawStatus), custom.selfColorize) : null;
   if (!normalizedStatus) {
     return custom.hideWhenMissing ? { content: "", visible: false } : { content: custom.prefix ?? custom.id, visible: true };
   }
