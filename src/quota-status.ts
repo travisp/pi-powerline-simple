@@ -44,7 +44,9 @@ export function compactQuotaStatus(statusKey: string, value: string): string {
   for (const match of plain.matchAll(/\(↺(?:in )?([^)]*)\)/g)) {
     let duration = match[1].replace(/\s+/g, "");
     if (duration.includes("d")) duration = duration.replace(/\d+m/g, "");
-    edits.push({ start: match.index, end: match.index + match[0].length, text: `↺ ${duration}` });
+    const gap = plain.slice(0, match.index).match(/%(?: left)?(\s+)$/);
+    const start = match.index - (gap?.[1].length ?? 0);
+    edits.push({ start, end: match.index + match[0].length, text: `↺ ${duration}` });
   }
 
   return applyVisibleEdits(value, edits);

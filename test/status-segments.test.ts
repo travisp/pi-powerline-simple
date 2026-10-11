@@ -121,8 +121,8 @@ test("quota statuses are compact in both ordinary and custom segments", () => {
     extensionStatuses: new Map([["pi-quotas-usage", value], ["other", value]]),
     customItemsById: new Map([[item.id, item]]),
   });
-  assert.equal(stripAnsi(renderSegment("extension_statuses", ctx).content), `98% ↺ 6d22h · ${value}`);
-  assert.equal(renderSegment("custom:quota", ctx).content, "98% ↺ 6d22h");
+  assert.equal(stripAnsi(renderSegment("extension_statuses", ctx).content), `98%↺ 6d22h · ${value}`);
+  assert.equal(renderSegment("custom:quota", ctx).content, "98%↺ 6d22h");
 });
 
 test("session names and provider-qualified model IDs render correctly", () => {
