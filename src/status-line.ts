@@ -4,7 +4,7 @@ import { ansi, getFgAnsiCode } from "./upstream/colors.ts";
 import { mergeSegmentsWithCustomItems, type PowerlineConfig } from "./upstream/powerline-config.ts";
 import { getSeparator } from "./upstream/separators.ts";
 import { renderSegment } from "./upstream/segments.ts";
-import type { PresetDef, SegmentContext, StatusLineSegmentId, StatusLineSeparatorStyle } from "./upstream/types.ts";
+import type { PresetDef, SegmentContext, StatusLineSegmentId } from "./upstream/types.ts";
 
 interface RenderedPart {
   content: string;
@@ -25,15 +25,13 @@ function renderPart(id: StatusLineSegmentId, context: SegmentContext): RenderedP
   }
   const rendered = renderSegment(id, context);
   if (!rendered.visible || !rendered.content) return null;
-  const content = customizeSegment(id, rendered.content, context.options);
+  const content = customizeSegment(id, rendered.content, context.options, context.compactSpacing);
   return { content, width: visibleWidth(content) };
 }
 
-function buildContent(parts: readonly RenderedPart[], separatorStyle: StatusLineSeparatorStyle): string {
+function buildContent(parts: readonly RenderedPart[], divider: string): string {
   if (parts.length === 0) return "";
-  const separator = getSeparator(separatorStyle).left;
-  const styledSeparator = `${getFgAnsiCode("sep")}${separator}${ansi.reset}`;
-  return ` ${parts.map((part) => part.content).join(` ${styledSeparator} `)}${ansi.reset} `;
+  return ` ${parts.map((part) => part.content).join(divider)}${ansi.reset} `;
 }
 
 /**
@@ -51,6 +49,7 @@ export function renderStatusLines(
     disabledSegments: config.disabledSegments,
   });
   const ids = [...layout.leftSegments, ...layout.rightSegments, ...layout.secondarySegments];
+  context = { ...context, compactSpacing: config.compactSpacing };
   const parts = ids.flatMap((id) => {
     const part = renderPart(id, context);
     return part ? [part] : [];
@@ -58,7 +57,9 @@ export function renderStatusLines(
   if (parts.length === 0) return [];
 
   const separatorStyle = config.separator ?? preset.separator;
-  const separatorWidth = visibleWidth(getSeparator(separatorStyle).left) + 2;
+  const gap = config.compactSpacing ? "" : " ";
+  const divider = `${gap}${getFgAnsiCode("sep")}${getSeparator(separatorStyle).left}${ansi.reset}${gap}`;
+  const separatorWidth = visibleWidth(divider);
   const primary: RenderedPart[] = [];
   const overflow: RenderedPart[] = [];
   let primaryWidth = 2;
@@ -84,5 +85,5 @@ export function renderStatusLines(
     secondaryWidth += needed;
   }
 
-  return [buildContent(primary, separatorStyle), buildContent(secondary, separatorStyle)].filter(Boolean);
+  return [buildContent(primary, divider), buildContent(secondary, divider)].filter(Boolean);
 }

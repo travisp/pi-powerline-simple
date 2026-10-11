@@ -83,7 +83,7 @@ Add `narrow` to your existing `powerline` settings to switch display configurati
 }
 ```
 
-`custom:cache-hit` must match an item ID in your `customItems`. Below 80 columns this example hides the directory and CH; at 80 or above the normal configuration returns. Resizing never writes settings. Without `narrow`, the display is unchanged. `belowWidth` must be a positive integer; an invalid or missing breakpoint disables the override.
+`custom:cache-hit` must match an item ID in your `customItems`. Below 80 columns this example hides the directory and CH; at 80 or above the normal configuration returns. Narrow displays also omit spaces around dividers, inline dot separators, and icon/custom prefixes; separator symbols and spaces inside status text stay intact. Desktop spacing returns at the breakpoint. Resizing never writes settings. Without `narrow`, the display is unchanged. `belowWidth` must be a positive integer; an invalid or missing breakpoint disables the override.
 
 The override uses the existing display options, including `preset`, `layout`, `customItems`, `disabledSegments`, `separator`, and segment options. Objects merge by key; arrays replace rather than append (including individual layout rows). Omitted settings are inherited. For example, to replace and reorder segments and shorten context usage:
 

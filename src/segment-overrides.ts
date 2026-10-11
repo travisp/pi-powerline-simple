@@ -13,10 +13,11 @@ export function customizeModelName(name: string): string {
   return qualifier + model.replace(/^(gpt|claude)[ -]+/i, "").replace(/\s+/g, "-");
 }
 
-export function customizeSegment(id: StatusLineSegmentId, content: string, options: StatusLineSegmentOptions): string {
-  if (id === "thinking") return content.replace(thinkingPrefix, "🧠 ");
+export function customizeSegment(id: StatusLineSegmentId, content: string, options: StatusLineSegmentOptions, compactSpacing = false): string {
+  const gap = compactSpacing ? "" : " ";
+  if (id === "thinking") return content.replace(thinkingPrefix, `🧠${gap}`);
   if (id === "context_pct" && options.context?.format === "percent") {
-    return `${getIcons().context} ${content}`;
+    return `${getIcons().context}${gap}${content}`;
   }
   return content;
 }

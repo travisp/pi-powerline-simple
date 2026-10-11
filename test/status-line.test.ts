@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePowerlineConfig } from "../src/upstream/powerline-config.ts";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import { configForWidth, parsePowerlineConfig } from "../src/upstream/powerline-config.ts";
 import { PRESETS, getPreset } from "../src/upstream/presets.ts";
 import type { SegmentContext, StatusLinePreset } from "../src/upstream/types.ts";
 import { renderStatusLines } from "../src/status-line.ts";
@@ -110,6 +111,27 @@ test("adaptive footer moves non-fitting segments to an overflow line", () => {
     " Test Model > 🧠 low ",
     " dir project > ◫ 1.0k/10k (10.0%) ",
   ]);
+});
+
+test("narrow layouts tighten dividers and prefixes without removing text spaces or colors", () => {
+  const config = parsePowerlineConfig({
+    separator: "ascii",
+    customItems: [{ id: "usage", statusKey: "usage", prefix: "🏰", selfColorize: true }],
+    layout: { left: ["model", "thinking", "path", "context_pct"], right: ["custom:usage"], secondary: [] },
+    narrow: { belowWidth: 80 },
+  }, names);
+  const context = segmentContext();
+  context.options.context = { format: "percent" };
+  context.customItemsById.set("usage", config.customItems[0]);
+  context.extensionStatuses.set("usage", "\x1b[32mMain VM\x1b[0m");
+  const render = (width: number) => renderStatusLines(context, getPreset(config.preset), configForWidth(config, width), width);
+  const compact = " Test Model>🧠low>dirproject>◫10%>🏰·Main VM ";
+  assert.deepEqual(render(79).map(stripAnsi), [compact]);
+  assert.match(render(79)[0], /\x1b\[32mMain VM/);
+  assert.deepEqual(render(visibleWidth(compact)).map(stripAnsi), [compact]);
+  assert.equal(render(visibleWidth(compact) - 1).length, 2);
+  assert.deepEqual(render(80).map(stripAnsi), [" Test Model > 🧠 low > dir project > ◫ 10% > 🏰 · Main VM "]);
+  assert.equal(context.compactSpacing, undefined, "rendering must not modify the caller\'s context");
 });
 
 test("slash and pipe separators have one space on each side and fit exact widths", () => {

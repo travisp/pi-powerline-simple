@@ -217,6 +217,8 @@ export interface SegmentContext {
   customItemsById: ReadonlyMap<string, CustomStatusItem>;
   
   // Options
+  /** Narrow layouts omit padding around icons and inline dot separators. */
+  compactSpacing?: boolean;
   options: StatusLineSegmentOptions;
   
   // Theming

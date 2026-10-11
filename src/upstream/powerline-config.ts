@@ -5,6 +5,7 @@ import type { ColorValue, CustomItemPosition, CustomStatusItem, PowerlinePlaceme
 
 export interface PowerlineConfig {
   preset: StatusLinePreset;
+  compactSpacing: boolean;
   narrow: { belowWidth: number; config: PowerlineConfig } | null;
   customItems: CustomStatusItem[];
   disabledSegments: StatusLineSegmentId[];
@@ -326,7 +327,7 @@ export function parsePowerlineConfig(value: unknown, presets: readonly StatusLin
   // Parse each display independently: only this outer layer handles the breakpoint.
   config.narrow = {
     belowWidth,
-    config: parseDisplayConfig(mergeDisplayConfig(value, value.narrow), presets),
+    config: { ...parseDisplayConfig(mergeDisplayConfig(value, value.narrow), presets), compactSpacing: true },
   };
   return config;
 }
@@ -334,6 +335,7 @@ export function parsePowerlineConfig(value: unknown, presets: readonly StatusLin
 function parseDisplayConfig(value: unknown, presets: readonly StatusLinePreset[]): PowerlineConfig {
   const defaultConfig: PowerlineConfig = {
     preset: "default",
+    compactSpacing: false,
     narrow: null,
     customItems: [],
     disabledSegments: [],
@@ -364,6 +366,7 @@ function parseDisplayConfig(value: unknown, presets: readonly StatusLinePreset[]
 
   return {
     preset: normalizePreset(value.preset, presets) ?? defaultConfig.preset,
+    compactSpacing: false,
     narrow: null,
     customItems,
     disabledSegments,

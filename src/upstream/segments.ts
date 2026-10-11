@@ -19,8 +19,12 @@ function color(ctx: SegmentContext, semantic: SemanticColor, text: string): stri
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-function withIcon(icon: string, text: string): string {
-  return icon ? `${icon} ${text}` : text;
+function withIcon(ctx: SegmentContext, icon: string, text: string): string {
+  return icon ? `${icon}${ctx.compactSpacing ? "" : " "}${text}` : text;
+}
+
+function dotSeparator(ctx: SegmentContext): string {
+  return ctx.compactSpacing ? "·" : SEP_DOT;
 }
 
 function formatTokens(n: number): string {
@@ -59,14 +63,14 @@ const modelSegment: StatusLineSegment = {
       modelName = modelName.slice(7);
     }
 
-    let content = withIcon(icons.model, modelName);
+    let content = withIcon(ctx, icons.model, modelName);
 
     if (opts.showThinkingLevel !== false && ctx.model?.reasoning) {
       const level = ctx.thinkingLevel || "off";
       if (level !== "off") {
         const thinkingText = getThinkingText(level);
         if (thinkingText) {
-          content += `${SEP_DOT}${thinkingText}`;
+          content += `${dotSeparator(ctx)}${thinkingText}`;
         }
       }
     }
@@ -90,7 +94,7 @@ const shellModeSegment: StatusLineSegment = {
       parts.push(cwd);
     }
 
-    return { content: color(ctx, "shellMode", parts.join(SEP_DOT)), visible: true };
+    return { content: color(ctx, "shellMode", parts.join(dotSeparator(ctx))), visible: true };
   },
 };
 
@@ -127,7 +131,7 @@ const pathSegment: StatusLineSegment = {
       }
     }
 
-    const content = withIcon(icons.folder, pwd);
+    const content = withIcon(ctx, icons.folder, pwd);
     return { content: color(ctx, "path", content), visible: true };
   },
 };
@@ -170,7 +174,7 @@ const gitSegment: StatusLineSegment = {
     if (showBranch && branch) {
       // Color just the branch name (icon + branch text)
       const branchIcon = resolveBranchIcon(icons, opts.hostIcon === true, ctx.cwd);
-      content = color(ctx, branchColor, withIcon(branchIcon, branch));
+      content = color(ctx, branchColor, withIcon(ctx, branchIcon, branch));
     }
 
     // Add status indicators (each with their own color, not wrapped)
@@ -267,7 +271,7 @@ const queueSegment: StatusLineSegment = {
     }
 
     if (parts.length === 0) return { content: "", visible: false };
-    return { content: color(ctx, "queue", parts.join(SEP_DOT)), visible: true };
+    return { content: color(ctx, "queue", parts.join(dotSeparator(ctx))), visible: true };
   },
 };
 
@@ -278,7 +282,7 @@ const tokenInSegment: StatusLineSegment = {
     const { input } = ctx.usageStats;
     if (!input) return { content: "", visible: false };
 
-    const content = withIcon(icons.input, formatTokens(input));
+    const content = withIcon(ctx, icons.input, formatTokens(input));
     return { content: color(ctx, "tokens", content), visible: true };
   },
 };
@@ -290,7 +294,7 @@ const tokenOutSegment: StatusLineSegment = {
     const { output } = ctx.usageStats;
     if (!output) return { content: "", visible: false };
 
-    const content = withIcon(icons.output, formatTokens(output));
+    const content = withIcon(ctx, icons.output, formatTokens(output));
     return { content: color(ctx, "tokens", content), visible: true };
   },
 };
@@ -303,7 +307,7 @@ const tokenTotalSegment: StatusLineSegment = {
     const total = input + output + cacheRead + cacheWrite;
     if (!total) return { content: "", visible: false };
 
-    const content = withIcon(icons.tokens, formatTokens(total));
+    const content = withIcon(ctx, icons.tokens, formatTokens(total));
     return { content: color(ctx, "tokens", content), visible: true };
   },
 };
@@ -360,7 +364,7 @@ const contextPctSegment: StatusLineSegment = {
     // Icon outside color, text inside - use semantic colors for thresholds
     let content: string;
     const colored = (semantic: "context" | "contextWarn" | "contextError") =>
-      percentOnly ? color(ctx, semantic, text) : withIcon(icons.context, color(ctx, semantic, text));
+      percentOnly ? color(ctx, semantic, text) : withIcon(ctx, icons.context, color(ctx, semantic, text));
     if (hasKnownUsage && contextPercent > 90) {
       content = colored("contextError");
     } else if (hasKnownUsage && contextPercent > 70) {
@@ -383,7 +387,7 @@ const contextTotalSegment: StatusLineSegment = {
     if (!window) return { content: "", visible: false };
 
     return {
-      content: color(ctx, "context", withIcon(icons.context, formatTokens(window))),
+      content: color(ctx, "context", withIcon(ctx, icons.context, formatTokens(window))),
       visible: true,
     };
   },
@@ -396,7 +400,7 @@ const timeSpentSegment: StatusLineSegment = {
     const elapsed = Date.now() - ctx.sessionStartTime;
     if (elapsed < 1000) return { content: "", visible: false };
 
-    return { content: withIcon(icons.time, formatDuration(elapsed)), visible: true };
+    return { content: withIcon(ctx, icons.time, formatDuration(elapsed)), visible: true };
   },
 };
 
@@ -421,7 +425,7 @@ const timeSegment: StatusLineSegment = {
     }
     timeStr += suffix;
 
-    return { content: withIcon(icons.time, timeStr), visible: true };
+    return { content: withIcon(ctx, icons.time, timeStr), visible: true };
   },
 };
 
@@ -432,7 +436,7 @@ const sessionSegment: StatusLineSegment = {
     const sessionId = ctx.sessionId;
     const display = ctx.sessionName?.trim() ? ctx.sessionName : sessionId?.slice(0, 8) || "new";
 
-    return { content: withIcon(icons.session, display), visible: true };
+    return { content: withIcon(ctx, icons.session, display), visible: true };
   },
 };
 
@@ -441,7 +445,7 @@ const hostnameSegment: StatusLineSegment = {
   render() {
     const icons = getIcons();
     const name = osHostname().split(".")[0];
-    return { content: withIcon(icons.host, name), visible: true };
+    return { content: withIcon(ctx, icons.host, name), visible: true };
   },
 };
 
@@ -459,9 +463,9 @@ const cacheReadSegment: StatusLineSegment = {
 
     let content: string;
     if (format === "percent") {
-      content = [icons.cache, `${hitRate}%`].filter(Boolean).join(" ");
+      content = [icons.cache, `${hitRate}%`].filter(Boolean).join(ctx.compactSpacing ? "" : " ");
     } else {
-      const tokens = [icons.cache, icons.input, formatTokens(cacheRead)].filter(Boolean).join(" ");
+      const tokens = [icons.cache, icons.input, formatTokens(cacheRead)].filter(Boolean).join(ctx.compactSpacing ? "" : " ");
       content = format === "both" ? `${tokens} (${hitRate}%)` : tokens;
     }
     return { content: color(ctx, "tokens", content), visible: true };
@@ -476,7 +480,7 @@ const cacheWriteSegment: StatusLineSegment = {
     if (!cacheWrite) return { content: "", visible: false };
 
     const parts = [icons.cache, icons.output, formatTokens(cacheWrite)].filter(Boolean);
-    const content = parts.join(" ");
+    const content = parts.join(ctx.compactSpacing ? "" : " ");
     return { content: color(ctx, "tokens", content), visible: true };
   },
 };
@@ -503,7 +507,7 @@ const extensionStatusesSegment: StatusLineSegment = {
     if (parts.length === 0) return { content: "", visible: false };
 
     // Normalization strips trailing SGR resets; isolate each status's styling.
-    const content = parts.map((part) => `\x1b[0m${part}\x1b[0m`).join(SEP_DOT);
+    const content = parts.map((part) => `\x1b[0m${part}\x1b[0m`).join(dotSeparator(ctx));
     return { content, visible: true };
   },
 };
@@ -548,7 +552,7 @@ function renderCustomSegment(id: `custom:${string}`, ctx: SegmentContext): Rende
 
   let content = normalizedStatus;
   if (custom.prefix) {
-    content = `${custom.prefix}${SEP_DOT}${content}`;
+    content = `${custom.prefix}${dotSeparator(ctx)}${content}`;
   }
   if (custom.color && !custom.selfColorize) {
     content = applyColor(ctx.theme, custom.color, content);

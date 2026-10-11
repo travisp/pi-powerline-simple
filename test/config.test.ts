@@ -31,6 +31,8 @@ test("narrow overrides merge objects, replace arrays, and switch strictly below 
   const config = parsePowerlineConfig(raw, PRESET_NAMES);
   const narrow = configForWidth(config, 79);
   assert.equal(narrow.preset, "compact");
+  assert.equal(narrow.compactSpacing, true);
+  assert.equal(config.compactSpacing, false);
   assert.equal(narrow.separator, "ascii");
   assert.deepEqual(narrow.layout, { left: ["custom:usage", "git"], right: ["context_pct"] });
   assert.deepEqual(narrow.disabledSegments, ["path"]);
