@@ -4,6 +4,8 @@ A status-only fork of [`pi-powerline-footer`](https://github.com/nicobailon/pi-p
 
 It does not replace or wrap the editor, intercept input, change `/compact`, or include Powerline's queue/inbox, bash mode, stash, welcome, working-vibes, prompt-history, or other workflow features.
 
+Additional scoped upstream ports: full-session usage accounting from [`ebe6db5`](https://github.com/nicobailon/pi-powerline-footer/commit/ebe6db5667cfe8e2222ef2a81cc15fe9229d6532) and the cache-hit denominator fix from [`6430180`](https://github.com/nicobailon/pi-powerline-footer/commit/6430180781de05462a65dc190374e094af0a7aaa). These do not advance the full upstream baseline or add workflow features.
+
 ## Source boundary
 
 - `src/upstream/` vendors Powerline's status modules: configuration, presets, segments, themes, icons, separators, Git polling, token/context accounting, currency conversion, and render scheduling.
@@ -20,7 +22,7 @@ Local extras do not add built-in segment IDs. Gondolin, usage, remote-admin, cac
 pi install /Users/travis/coding/pi/pi-powerline-simple
 ```
 
-Requires Pi 0.81.0 or newer. Restart Pi or run `/reload`.
+Requires Pi 1.5.0 or newer. Restart Pi or run `/reload`.
 
 ## Default display
 
@@ -147,6 +149,10 @@ Cache-hit and last-response producers are enabled when either configuration requ
 Custom item fields: `id`, `statusKey`, `position`, `prefix`, `color`, `selfColorize`, `hideWhenMissing`, and `excludeFromExtensionStatuses`. Colors accept Pi theme names or `#RRGGBB`. Set `selfColorize: true` to preserve the status producer's ANSI styling instead of applying `color` (default: false).
 
 Context usage after reload or compaction is estimated when Pi has not yet reported measured usage. Estimates are prefixed with `~`; unavailable usage is shown as `?`, not zero or stale pre-compaction usage. The session segment prefers the session name when one is set.
+
+Token and cost totals cover the full session ledger across branches, including billed failures/aborts, native tool usage, compaction and branch-summary usage, and explicit usage entries. Context and thinking remain specific to the active branch. Native tool usage takes precedence over legacy subagent cost details on the same result, avoiding double counting. Billing uses Pi's full session ledger and entry-count API.
+
+The built-in `cache_read` segment's `percent` and `both` formats calculate hits as `cacheRead / (input + cacheRead + cacheWrite)`. Cache writes are prompt tokens, but not cache hits.
 
 ### Status options retained from upstream
 

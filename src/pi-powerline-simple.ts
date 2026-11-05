@@ -34,7 +34,7 @@ import { getAgentPath } from "./upstream/paths.ts";
 import { PRESETS, getPreset } from "./upstream/presets.ts";
 import { createRenderScheduler } from "./upstream/render-scheduler.ts";
 import { getDefaultColors } from "./upstream/theme.ts";
-import { SessionBranchCache, SessionTokenStatsCache } from "./upstream/token-stats.ts";
+import { SessionUsageCache, type SessionLedgerProvider } from "./upstream/token-stats.ts";
 import type {
   ColorScheme,
   QueueSummary,
@@ -162,13 +162,11 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
   let hasCustomCompaction = false;
   let approximateContextUsage: CoreContextUsage | null = null;
 
-  const branchCache = new SessionBranchCache();
-  const tokenStatsCache = new SessionTokenStatsCache();
+  const tokenStatsCache = new SessionUsageCache();
   const contextUsageCache = new CoreContextUsageCache();
   const scheduler = createRenderScheduler(() => requestTuiRender?.(), 33);
 
   const resetCaches = () => {
-    branchCache.reset();
     tokenStatsCache.reset();
     contextUsageCache.reset();
   };
@@ -178,8 +176,8 @@ export default function piPowerlineSimple(pi: ExtensionAPI): void {
   const buildContext = (ctx: ExtensionContext, theme: Theme, activeConfig: PowerlineConfig): SegmentContext => {
     const preset = getPreset(activeConfig.preset);
     const colors: ColorScheme = preset.colors ?? getDefaultColors();
-    const branch = branchCache.get(ctx.sessionManager);
-    const tokenStats = tokenStatsCache.get(branch);
+    // Pi 1.5 supplies the full SessionManager; its readonly type omits getEntryCount.
+    const tokenStats = tokenStatsCache.get(ctx.sessionManager as SessionLedgerProvider);
     const latestUsage = isStreaming
       ? liveAssistantUsage ?? (tokenStats.lastAssistant?.usage as AssistantUsage | undefined)
       : tokenStats.lastAssistant?.usage as AssistantUsage | undefined;

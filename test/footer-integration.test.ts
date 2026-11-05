@@ -52,6 +52,8 @@ test("extension mounts the upstream footer and notification-status widget", () =
     sessionManager: {
       getLeafId: () => "leaf",
       getBranch: () => [],
+      getEntries: () => [],
+      getEntryCount: () => 0,
       getSessionId: () => "session",
       getSessionName: () => undefined,
       buildContextEntries: () => [],
@@ -130,4 +132,73 @@ test("extension mounts the upstream footer and notification-status widget", () =
   if (previousNerdFonts === undefined) delete process.env.POWERLINE_NERD_FONTS;
   else process.env.POWERLINE_NERD_FONTS = previousNerdFonts;
   rmSync(agentDir, { recursive: true, force: true });
+});
+
+test("rendered billing covers the full ledger while context and thinking follow tree navigation", (t) => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-powerline-simple-billing-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const previousNerdFonts = process.env.POWERLINE_NERD_FONTS;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  process.env.POWERLINE_NERD_FONTS = "0";
+  t.after(() => {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    if (previousNerdFonts === undefined) delete process.env.POWERLINE_NERD_FONTS;
+    else process.env.POWERLINE_NERD_FONTS = previousNerdFonts;
+    rmSync(agentDir, { recursive: true, force: true });
+  });
+  writeFileSync(join(agentDir, "settings.json"), JSON.stringify({
+    powerline: {
+      separator: "ascii",
+      layout: { left: ["cost", "context_pct", "thinking"], right: [], secondary: [] },
+    },
+  }));
+  const handlers = new Map<string, (event: any, ctx: any) => unknown>();
+  let footerFactory: any;
+  piPowerlineSimple({
+    on(name: string, handler: (event: any, ctx: any) => unknown) { handlers.set(name, handler); },
+    registerCommand() {},
+  } as any);
+
+  const usage = (input: number, cost: number) => ({ input, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: cost } });
+  const a = { type: "message", message: { role: "assistant", stopReason: "stop", usage: usage(100, 0.25) } };
+  const b = { type: "message", message: { role: "assistant", stopReason: "stop", usage: usage(2_000, 0.5) } };
+  const high = { type: "thinking_level_change", thinkingLevel: "high" };
+  const low = { type: "thinking_level_change", thinkingLevel: "low" };
+  const ledger: unknown[] = [
+    high, a, low, b,
+    { type: "compaction", usage: usage(10, 0.125) },
+    { type: "message", message: { role: "toolResult", usage: usage(20, 0.125) } },
+    { type: "message", message: { role: "assistant", stopReason: "error", usage: usage(30, 0.5) } },
+  ];
+  let branch: unknown[] = [high, a];
+  let leaf = "a";
+  const ctx = {
+    mode: "tui", cwd: "/tmp/project",
+    model: { id: "model", name: "Model", reasoning: true, contextWindow: 10_000 },
+    modelRegistry: { isUsingOAuth: () => false },
+    sessionManager: {
+      getLeafId: () => leaf, getBranch: () => branch, getEntries: () => ledger.slice(),
+      getEntryCount: () => ledger.length, getSessionId: () => "session", getSessionName: () => undefined,
+    },
+    // Exercise the branch-local assistant fallback, independent of measured host usage.
+    getContextUsage: () => undefined,
+    ui: {
+      setFooter(factory: any) { footerFactory = factory; },
+      setWidget() {}, notify() {},
+    },
+  };
+  handlers.get("session_start")!({}, ctx);
+  const component = footerFactory({ requestRender() {} }, { fg: (_color: string, text: string) => text }, {
+    getExtensionStatuses: () => new Map(), onBranchChange: () => () => {},
+  });
+  t.after(() => { component.dispose(); handlers.get("session_shutdown")!({}, ctx); });
+  assert.equal(stripAnsi(component.render(120)[0]), " $1.50 > ◫ 100/10k (1.0%) AC > 🧠 high ");
+
+  branch = [low, b];
+  leaf = "b";
+  handlers.get("session_tree")!({}, ctx);
+  assert.equal(stripAnsi(component.render(120)[0]), " $1.50 > ◫ 2.0k/10k (20.0%) AC > 🧠 low ");
+  ledger.push({ type: "usage", usage: usage(10, 0.25) });
+  assert.equal(stripAnsi(component.render(120)[0]), " $1.75 > ◫ 2.0k/10k (20.0%) AC > 🧠 low ");
 });

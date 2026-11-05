@@ -8,6 +8,8 @@ Ported status changes:
 - `segments.ts` and `types.ts` include its context estimates/unknown values, session names, cwd-scoped remote icons, model qualification, and custom/extension ANSI styling. Queue changes are intentionally excluded.
 - `powerline-config.ts` includes `customItems[].selfColorize` and ANSI-preserving normalization, but excludes new workflow configuration.
 - The native-footer adapter supplies the new context fields, estimates on reload/compaction, and scopes Git collection to the active cwd and visible layout.
+- `token-stats.ts` additionally ports full-ledger billing with branch-local context/thinking, native usage, and billed failures from upstream `ebe6db5667cfe8e2222ef2a81cc15fe9229d6532`. Native usage supersedes legacy subagent costs on the same result.
+- `segments.ts` additionally ports the cache-write-inclusive cache-hit denominator from upstream `6430180781de05462a65dc190374e094af0a7aaa`. Other changes after the recorded baseline are not implied.
 
 Vendored modules include configuration, presets, segment rendering, themes, icons, separators, Git polling, token/context accounting, currency conversion, paths, and render scheduling.
 

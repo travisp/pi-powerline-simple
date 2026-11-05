@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 
-type SessionAssistantUsage = AssistantMessage["usage"];
+type SessionUsage = AssistantMessage["usage"];
 
 export interface SessionTokenStats {
   input: number;
@@ -17,33 +17,48 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasSessionAssistantUsage(value: unknown): value is SessionAssistantUsage {
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function hasSessionUsage(value: unknown): value is SessionUsage {
   if (!isRecord(value)) {
     return false;
   }
 
   if (
-    typeof value.input !== "number" ||
-    typeof value.output !== "number" ||
-    typeof value.cacheRead !== "number" ||
-    typeof value.cacheWrite !== "number"
+    !isFiniteNumber(value.input) ||
+    !isFiniteNumber(value.output) ||
+    !isFiniteNumber(value.cacheRead) ||
+    !isFiniteNumber(value.cacheWrite)
   ) {
     return false;
   }
 
-  return isRecord(value.cost) && typeof value.cost.total === "number";
+  return isRecord(value.cost) && isFiniteNumber(value.cost.total);
 }
 
 function isSessionAssistantMessage(value: unknown): value is AssistantMessage {
   return isRecord(value)
     && value.role === "assistant"
-    && hasSessionAssistantUsage(value.usage)
+    && hasSessionUsage(value.usage)
     && (value.stopReason === undefined || typeof value.stopReason === "string");
 }
 
-function getUsageTokenTotal(usage: SessionAssistantUsage): number {
-  const totalTokens = "totalTokens" in usage && typeof usage.totalTokens === "number" ? usage.totalTokens : 0;
+function getUsageTokenTotal(usage: SessionUsage): number {
+  const totalTokens = "totalTokens" in usage && isFiniteNumber(usage.totalTokens) ? usage.totalTokens : 0;
   return totalTokens || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+}
+
+// Native charges are independent of whether an assistant is usable for context.
+function nativeUsage(event: Record<string, unknown>): SessionUsage | undefined {
+  const message = event.type === "message" && isRecord(event.message) ? event.message : undefined;
+  const usage = message?.role === "assistant" || message?.role === "toolResult"
+    ? message.usage
+    : event.type === "usage" || event.type === "compaction" || event.type === "branch_summary"
+      ? event.usage
+      : undefined;
+  return hasSessionUsage(usage) ? usage : undefined;
 }
 
 // Matches pi-subagents' internal SLASH_RESULT_TYPE custom_message marker.
@@ -69,13 +84,14 @@ function subagentDetailsFromSessionEntry(e: Record<string, unknown>): { results:
 // launched via the subagent tool or /parallel, /worker etc. slash commands), so the footer can
 // show total spend rather than only the interactive parent session's cost.
 function extractSubagentResultCost(e: Record<string, unknown>): number {
+  if (nativeUsage(e)) return 0;
   const details = subagentDetailsFromSessionEntry(e);
   if (!details) return 0;
   let total = 0;
   for (const result of details.results) {
     if (!isRecord(result)) continue;
     const usage = isRecord(result.usage) ? result.usage : undefined;
-    if (typeof usage?.cost === "number") total += usage.cost;
+    if (isFiniteNumber(usage?.cost)) total += usage.cost;
   }
   return total;
 }
@@ -95,23 +111,17 @@ function eventStatsSignature(event: unknown): string {
     return `t:${typeof event.thinkingLevel === "string" ? event.thinkingLevel : ""}`;
   }
 
-  const subagentDetails = subagentDetailsFromSessionEntry(event);
-  if (subagentDetails) {
-    return `s:${subagentDetails.results.length}:${extractSubagentResultCost(event)}`;
-  }
-
-  if (event.type === "message" && isRecord(event.message)) {
-    const message = event.message;
-    const role = typeof message.role === "string" ? message.role : "";
-    const stopReason = typeof message.stopReason === "string" ? message.stopReason : "";
-    if (role === "assistant" && hasSessionAssistantUsage(message.usage)) {
-      const usage = message.usage;
-      return `a:${stopReason}:${usage.input}/${usage.output}/${usage.cacheRead}/${usage.cacheWrite}/${usage.cost.total}`;
-    }
-    return `m:${role}:${stopReason}`;
-  }
-
-  return `e:${typeof event.type === "string" ? event.type : "?"}`;
+  const message = event.type === "message" && isRecord(event.message) ? event.message : undefined;
+  const usage = nativeUsage(event);
+  const totalTokens = usage ? getUsageTokenTotal(usage) : 0;
+  const type = typeof event.type === "string" ? event.type : "";
+  const role = typeof message?.role === "string" ? message.role : "";
+  const stopReason = typeof message?.stopReason === "string" ? message.stopReason : "";
+  const assistant = isSessionAssistantMessage(message);
+  // Include context eligibility as well as billing, even for legacy/native coexistence.
+  return `${type}:${role}:${stopReason}:${assistant}:${totalTokens}:`
+    + (usage ? `${usage.input}/${usage.output}/${usage.cacheRead}/${usage.cacheWrite}/${usage.cost.total}` : "")
+    + `:s:${extractSubagentResultCost(event)}`;
 }
 
 function emptySessionTokenStats(): SessionTokenStats {
@@ -140,17 +150,18 @@ function accumulateSessionEvent(stats: SessionTokenStats, event: unknown): void 
 
   stats.subagentCost += extractSubagentResultCost(event);
 
+  const usage = nativeUsage(event);
+  if (usage) {
+    stats.input += usage.input;
+    stats.output += usage.output;
+    stats.cacheRead += usage.cacheRead;
+    stats.cacheWrite += usage.cacheWrite;
+    stats.cost += usage.cost.total;
+  }
+
   if (event.type !== "message" || !isSessionAssistantMessage(event.message)) return;
-
   const message = event.message;
-  if (message.stopReason === "error" || message.stopReason === "aborted") return;
-
-  stats.input += message.usage.input;
-  stats.output += message.usage.output;
-  stats.cacheRead += message.usage.cacheRead;
-  stats.cacheWrite += message.usage.cacheWrite;
-  stats.cost += message.usage.cost.total;
-  if (getUsageTokenTotal(message.usage) > 0) {
+  if (message.stopReason !== "error" && message.stopReason !== "aborted" && getUsageTokenTotal(message.usage) > 0) {
     stats.lastAssistant = message;
   }
 }
@@ -195,35 +206,9 @@ export class SessionBranchCache {
 }
 
 export function computeSessionTokenStats(sessionEvents: readonly unknown[]): SessionTokenStats {
-  let input = 0, output = 0, cacheRead = 0, cacheWrite = 0, cost = 0, subagentCost = 0;
-  let lastAssistant: AssistantMessage | undefined;
-  let thinkingLevelFromSession: string | null = null;
-
-  for (const e of sessionEvents) {
-    if (!isRecord(e)) continue;
-
-    if (e.type === "thinking_level_change" && typeof e.thinkingLevel === "string") {
-      thinkingLevelFromSession = e.thinkingLevel;
-    }
-
-    subagentCost += extractSubagentResultCost(e);
-
-    if (e.type !== "message" || !isSessionAssistantMessage(e.message)) continue;
-
-    const m = e.message;
-    if (m.stopReason === "error" || m.stopReason === "aborted") continue;
-
-    input += m.usage.input;
-    output += m.usage.output;
-    cacheRead += m.usage.cacheRead;
-    cacheWrite += m.usage.cacheWrite;
-    cost += m.usage.cost.total;
-    if (getUsageTokenTotal(m.usage) > 0) {
-      lastAssistant = m;
-    }
-  }
-
-  return { input, output, cacheRead, cacheWrite, cost, subagentCost, lastAssistant, thinkingLevelFromSession };
+  const stats = emptySessionTokenStats();
+  for (const event of sessionEvents) accumulateSessionEvent(stats, event);
+  return stats;
 }
 
 /**
@@ -253,8 +238,8 @@ export class SessionTokenStatsCache {
       return this.stats;
     }
 
-    // getBranch() walks unique parent links, so an identical trailing event at
-    // the previous count proves the whole previous array is an unchanged prefix.
+    // Branch paths and the full ledger are append-only. An unchanged previous
+    // tail lets us reuse totals when the list grows.
     const previousStats = this.stats;
     const canExtendPreviousStats = previousStats !== null
       && eventCount > this.eventCount
@@ -300,5 +285,49 @@ export class SessionTokenStatsCache {
     this.lastSignature = "";
     this.prefixStats = null;
     this.stats = null;
+  }
+}
+
+export interface SessionLedgerProvider extends SessionBranchProvider {
+  getEntries(): readonly unknown[];
+  getEntryCount(): number;
+}
+
+/** Full-ledger billing with branch-local context and thinking state. */
+export class SessionUsageCache {
+  private branch = new SessionBranchCache();
+  private branchStats = new SessionTokenStatsCache();
+  private ledgerStats = new SessionTokenStatsCache();
+  private provider: SessionLedgerProvider | null = null;
+  private leafId: string | null = null;
+  private entries: readonly unknown[] = [];
+  private entryCount = -1;
+
+  get(source: SessionLedgerProvider): SessionTokenStats {
+    const branch = this.branch.get(source);
+    const active = this.branchStats.get(branch);
+    const leafId = source.getLeafId();
+    const entryCount = source.getEntryCount();
+    // Avoid copying the ledger on unchanged renders, including idle charges
+    // that were appended after navigating back to the same leaf.
+    if (this.provider !== source || this.leafId !== leafId || this.entryCount !== entryCount) {
+      if (this.provider !== source) this.ledgerStats.reset();
+      this.provider = source;
+      this.leafId = leafId;
+      this.entries = source.getEntries();
+      this.entryCount = entryCount;
+    }
+    const totals = this.ledgerStats.get(this.entries);
+    return { ...totals, lastAssistant: active.lastAssistant, thinkingLevelFromSession: active.thinkingLevelFromSession };
+  }
+
+  reset(): void {
+    this.branch.reset();
+    this.branchStats.reset();
+    this.ledgerStats.reset();
+    this.provider = null;
+    this.leafId = null;
+    this.entries = [];
+    this.entryCount = -1;
   }
 }

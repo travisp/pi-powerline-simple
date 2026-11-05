@@ -49,7 +49,18 @@ function context(overrides: Partial<SegmentContext> = {}): SegmentContext {
 
 test("context and cache segments retain upstream presentation options", () => {
   assert.equal(stripAnsi(renderSegment("context_pct", context()).content), "◫ 12k/200k (6.2%) AC");
-  assert.equal(stripAnsi(renderSegment("cache_read", context({ options: { cache_read: { format: "both" } } })).content), "cache in: 900 (90%)");
+  assert.equal(stripAnsi(renderSegment("cache_read", context({ options: { cache_read: { format: "both" } } })).content), "cache in: 900 (89%)");
+});
+
+test("cache hit percentages count cache writes without changing token display or visibility", () => {
+  const usageStats = { input: 90, output: 0, cacheRead: 5_000, cacheWrite: 27_009, cost: 0, subagentCost: 0 };
+  const render = (format: "tokens" | "percent" | "both", values = usageStats) => renderSegment("cache_read", context({
+    usageStats: values, options: { cache_read: { format } },
+  }));
+  assert.equal(stripAnsi(render("percent").content), "cache 16%");
+  assert.equal(stripAnsi(render("both").content), "cache in: 5.0k (16%)");
+  assert.equal(stripAnsi(render("tokens").content), "cache in: 5.0k");
+  assert.deepEqual(render("percent", { ...usageStats, input: 0, cacheRead: 0 }), { content: "", visible: false });
 });
 
 test("cost segment includes subagent cost and currency conversion", () => {
